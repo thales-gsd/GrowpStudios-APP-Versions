@@ -1,0 +1,69 @@
+name: Notify Release by Email
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  send-emails:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar msmtp
+        run: sudo apt-get install -y msmtp
+
+      - name: Configurar msmtp
+        run: |
+          cat > ~/.msmtprc <<EOF
+          defaults
+          auth           on
+          tls            on
+          tls_trust_file /etc/ssl/certs/ca-certificates.crt
+          logfile        ~/.msmtp.log
+
+          account        default
+          host           ${{ secrets.SMTP_SERVER }}
+          port           ${{ secrets.SMTP_PORT }}
+          from           ${{ secrets.SMTP_USERNAME }}
+          user           ${{ secrets.SMTP_USERNAME }}
+          password       ${{ secrets.SMTP_PASSWORD }}
+          EOF
+          chmod 600 ~/.msmtprc
+
+      - name: Enviar e-mails para cada destinatário
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          REPO_NAME:   ${{ github.repository }}
+          FROM_EMAIL:  ${{ secrets.SMTP_USERNAME }}
+        run: |
+          # Lê cada linha do arquivo de e-mails
+          while IFS= read -r EMAIL || [ -n "$EMAIL" ]; do
+            # Ignora linhas vazias e comentários
+            [[ -z "$EMAIL" || "$EMAIL" == #* ]] && continue
+
+            echo "Enviando para: $EMAIL"
+
+            msmtp --from="$FROM_EMAIL" "$EMAIL" <<MAIL
+From: $FROM_EMAIL
+To: $EMAIL
+Subject: Nova release ${RELEASE_TAG} disponível — ${REPO_NAME}
+Content-Type: text/plain; charset=utf-8
+
+Olá,
+
+Uma nova versão do ${REPO_NAME} foi publicada!
+
+Versão:  ${RELEASE_TAG}
+Download: ${RELEASE_URL}
+
+Acesse o link acima para baixar os arquivos da release.
+
+Atenciosamente,
+Pipeline de Release
+MAIL
+
+          done < .github/notify-emails.txt
