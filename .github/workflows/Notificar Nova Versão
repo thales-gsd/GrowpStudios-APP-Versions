@@ -8,6 +8,16 @@ jobs:
   send-email:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Ler Lista de Emails
+        id: read_emails
+        run: |
+          # Lê o ficheiro e junta os emails separados por vírgula
+          EMAILS=$(paste -sd "," emails.txt)
+          echo "lista=$EMAILS" >> $GITHUB_OUTPUT
+
       - name: Enviar E-mail de Notificação
         uses: dawidd6/action-send-mail@v3
         with:
@@ -16,13 +26,16 @@ jobs:
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "Nova Versão Disponível: ${{ github.event.release.tag_name }}"
-          to: "lista-de-usuarios@exemplo.com"
-          from: "Seu App <seu-email@exemplo.com>"
+          # Usa a saída do passo anterior
+          to: ${{ steps.read_emails.outputs.lista }}
+          from: "App Support <${{ secrets.EMAIL_USERNAME }}>"
           body: |
-            Uma nova versão do app foi lançada!
+            Olá!
             
-            Versão: ${{ github.event.release.tag_name }}
-            Notas da Versão: ${{ github.event.release.body }}
+            Uma nova versão do projeto foi lançada: ${{ github.event.release.tag_name }}
             
-            Clique no botão abaixo para baixar o arquivo mais recente:
+            Notas da Versão:
+            ${{ github.event.release.body }}
+            
+            Para descarregar a versão mais recente diretamente, clique no link abaixo:
             ${{ github.event.release.html_url }}
